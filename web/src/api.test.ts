@@ -5,7 +5,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("fetchEvents", () => {
   it("builds the query string and returns the events array", async () => {
-    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ events: [{ id: 1 }] }) }));
+    const fetchMock = vi.fn(async (_url: string) => ({ ok: true, json: async () => ({ events: [{ id: 1 }] }) }));
     vi.stubGlobal("fetch", fetchMock);
     const events = await fetchEvents({ after: 5, limit: 100 });
     expect(events).toEqual([{ id: 1 }]);
