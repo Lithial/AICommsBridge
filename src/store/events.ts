@@ -1,6 +1,8 @@
 import type { Db } from "./db.js";
 import { ensureChannel } from "./channels.js";
-import type { EventType, EventPayload, FeedEvent } from "../domain/events.js";
+import type { EventType, EventPayload, FeedEvent, ProgressPayload, LogPayload } from "../domain/events.js";
+
+const LOG_CAP = 1000;
 
 interface Row {
   id: number; channel_id: string; type: string; key: string | null;
@@ -59,4 +61,51 @@ export function queryEvents(
     .prepare(`SELECT * FROM (SELECT * FROM events ${where} ORDER BY id DESC LIMIT ?) ORDER BY id ASC`)
     .all(...args, limit) as Row[];
   return rows.map(toEvent);
+}
+
+export function upsertProgress(
+  db: Db,
+  params: { channelId: string; key: string; payload: ProgressPayload },
+): { event: FeedEvent; created: boolean } {
+  ensureChannel(db, params.channelId);
+  const existing = db
+    .prepare("SELECT id FROM events WHERE channel_id = ? AND type = 'progress' AND key = ?")
+    .get(params.channelId, params.key) as { id: number } | undefined;
+  if (existing) {
+    db.prepare("UPDATE events SET payload = ?, updated_at = ? WHERE id = ?")
+      .run(JSON.stringify(params.payload), Date.now(), existing.id);
+    return { event: getEvent(db, existing.id)!, created: false };
+  }
+  const event = insertEvent(db, { channelId: params.channelId, type: "progress", key: params.key, payload: params.payload });
+  return { event, created: true };
+}
+
+function capLines(lines: string[], priorTruncated: number): { lines: string[]; truncatedCount: number } {
+  if (lines.length <= LOG_CAP) return { lines, truncatedCount: priorTruncated };
+  const dropped = lines.length - LOG_CAP;
+  return { lines: lines.slice(dropped), truncatedCount: priorTruncated + dropped };
+}
+
+export function appendLog(
+  db: Db,
+  params: { channelId: string; key: string; text: string; title?: string },
+): { event: FeedEvent; created: boolean } {
+  ensureChannel(db, params.channelId);
+  const incoming = params.text.split("\n");
+  const existing = db
+    .prepare("SELECT id, payload FROM events WHERE channel_id = ? AND type = 'log' AND key = ?")
+    .get(params.channelId, params.key) as { id: number; payload: string } | undefined;
+
+  if (existing) {
+    const prev = JSON.parse(existing.payload) as LogPayload;
+    const capped = capLines([...prev.lines, ...incoming], prev.truncatedCount);
+    const next: LogPayload = { title: prev.title ?? params.title, lines: capped.lines, truncatedCount: capped.truncatedCount };
+    db.prepare("UPDATE events SET payload = ?, updated_at = ? WHERE id = ?").run(JSON.stringify(next), Date.now(), existing.id);
+    return { event: getEvent(db, existing.id)!, created: false };
+  }
+
+  const capped = capLines(incoming, 0);
+  const payload: LogPayload = { title: params.title, lines: capped.lines, truncatedCount: capped.truncatedCount };
+  const event = insertEvent(db, { channelId: params.channelId, type: "log", key: params.key, payload });
+  return { event, created: true };
 }
