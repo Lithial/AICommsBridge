@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join, extname } from "node:path";
 import { randomUUID } from "node:crypto";
-import sizeOf from "image-size";
+import { imageSize } from "image-size";
 
 export interface StoredMedia {
   mediaId: string;
@@ -38,7 +38,7 @@ export function saveMediaFromBuffer(dir: string, buffer: Buffer, mime: string): 
   let width: number | undefined;
   let height: number | undefined;
   try {
-    const d = sizeOf(buffer);
+    const d = imageSize(buffer);
     width = d.width;
     height = d.height;
   } catch {
