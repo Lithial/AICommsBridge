@@ -1,5 +1,5 @@
 import { render } from "preact";
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState, useMemo } from "preact/hooks";
 import type { FeedEvent } from "./types";
 import { fetchEvents, clearEvents } from "./api";
 import { connectFeed, type FeedConnection } from "./ws-client";
@@ -12,6 +12,14 @@ function App() {
   const [store] = useState(() => new FeedStore());
   const [events, setEvents] = useState<FeedEvent[]>([]);
   const [connected, setConnected] = useState(false);
+  const [selectedChannel, setSelectedChannelState] = useState<string | null>(null);
+  // ref keeps the handler closure in sync without re-creating it on every render
+  const selectedChannelRef = useRef<string | null>(null);
+
+  const setSelectedChannel = (c: string | null): void => {
+    selectedChannelRef.current = c;
+    setSelectedChannelState(c);
+  };
 
   useEffect(() => {
     let active = true;
@@ -28,19 +36,49 @@ function App() {
         getLastSeenId: () => store.lastSeenId(),
         backfill: (after) => fetchEvents({ after }),
         onStatus: (c) => { if (active) setConnected(c); },
-        onMessage: (m) => { store.apply(m); if (m.kind !== "cleared") maybeNotify(m.event); refresh(); },
+        onMessage: (m) => {
+          store.apply(m);
+          // if the cleared channel is the one being viewed, fall back to "All"
+          if (m.kind === "cleared" && m.channelId != null && m.channelId === selectedChannelRef.current) {
+            setSelectedChannel(null);
+          }
+          if (m.kind !== "cleared") maybeNotify(m.event);
+          refresh();
+        },
       });
     });
 
     return () => { active = false; conn?.close(); };
   }, []);
 
+  // derive sorted channel list from what's in the store — no extra fetch needed
+  const channels = useMemo(
+    () => [...new Set(events.map((e) => e.channelId))].sort(),
+    [events],
+  );
+
+  // if the selected channel no longer has events (e.g. after a clear), reset
+  const activeChannel = selectedChannel && channels.includes(selectedChannel) ? selectedChannel : null;
+  if (activeChannel !== selectedChannel) selectedChannelRef.current = activeChannel;
+
+  const visibleEvents = activeChannel ? events.filter((e) => e.channelId === activeChannel) : events;
+
   const onClear = (): void => {
-    if (!confirm("Clear all cards? This permanently deletes the feed history and cannot be undone.")) return;
-    void clearEvents().catch(() => { /* a failed clear self-heals on the next reconnect/backfill */ });
+    const label = activeChannel ? `channel "${activeChannel}"` : "all channels";
+    if (!confirm(`Clear ${label}? This permanently deletes those cards and cannot be undone.`)) return;
+    void clearEvents(activeChannel ?? undefined).catch(() => { /* self-heals on reconnect */ });
   };
 
-  return <Feed events={events} connected={connected} onClear={onClear} />;
+  return (
+    <Feed
+      events={visibleEvents}
+      connected={connected}
+      channels={channels}
+      selectedChannel={activeChannel}
+      onSelectChannel={setSelectedChannel}
+      onClear={onClear}
+    />
+  );
 }
 
 render(<App />, document.getElementById("app")!);

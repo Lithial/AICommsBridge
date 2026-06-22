@@ -19,3 +19,18 @@ export async function clearEvents(channel?: string): Promise<number> {
   const body = (await res.json()) as { deleted: number };
   return body.deleted;
 }
+
+export interface ChannelSummary {
+  id: string;
+  title: string | null;
+  createdAt: number;
+  eventCount: number;
+  lastUpdated: number | null;
+}
+
+export async function fetchChannels(): Promise<ChannelSummary[]> {
+  const res = await fetch("/api/channels");
+  if (!res.ok) throw new Error(`fetchChannels failed: ${res.status}`);
+  const body = (await res.json()) as { channels: ChannelSummary[] };
+  return body.channels;
+}

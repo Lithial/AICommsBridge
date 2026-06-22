@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { Db } from "../store/db.js";
 import type { FeedService } from "../feed.js";
 import { queryEvents } from "../store/events.js";
+import { listChannels } from "../store/channels.js";
 
 export function eventsRouter(db: Db, feed: FeedService): Router {
   const r = Router();
@@ -19,6 +20,9 @@ export function eventsRouter(db: Db, feed: FeedService): Router {
     const channel = typeof req.query.channel === "string" ? req.query.channel : undefined;
     const { deleted } = feed.clear({ channelId: channel });
     res.json({ deleted });
+  });
+  r.get("/channels", (_req, res) => {
+    res.json({ channels: listChannels(db) });
   });
   return r;
 }
