@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDb, type Db } from "../src/store/db.js";
 import { Broadcaster } from "../src/realtime/broadcaster.js";
 import { FeedService } from "../src/feed.js";
 import { queryEvents } from "../src/store/events.js";
+import { mediaPath } from "../src/store/media-store.js";
 import { DEFAULT_CHANNEL } from "../src/domain/events.js";
 import type { FeedMessage, CodePayload, ImagePayload } from "../src/domain/events.js";
 
@@ -52,5 +53,27 @@ describe("FeedService", () => {
     expect(p.mode).toBe("diff");
     expect(p.diff).toContain("-a");
     expect(p.diff).toContain("+b");
+  });
+
+  it("clear removes events, prunes media files, and broadcasts 'cleared'", () => {
+    const img = feed.showImage({ channelId: DEFAULT_CHANNEL, data: PNG, mimeType: "image/png" });
+    const mediaFile = mediaPath(join(dir, "media"), (img.payload as ImagePayload).mediaId);
+    expect(existsSync(mediaFile)).toBe(true);
+    seen = [];
+    const { deleted } = feed.clear();
+    expect(deleted).toBe(1);
+    expect(queryEvents(db, {})).toEqual([]);
+    expect(existsSync(mediaFile)).toBe(false);
+    expect(seen).toEqual([{ kind: "cleared", channelId: undefined }]);
+  });
+
+  it("clear scoped to a channel leaves other channels and reports the scope", () => {
+    feed.postNote({ channelId: "keep", markdown: "stay" });
+    feed.postNote({ channelId: "drop", markdown: "go" });
+    seen = [];
+    const { deleted } = feed.clear({ channelId: "drop" });
+    expect(deleted).toBe(1);
+    expect(queryEvents(db, {}).map((e) => e.channelId)).toEqual(["keep"]);
+    expect(seen).toEqual([{ kind: "cleared", channelId: "drop" }]);
   });
 });

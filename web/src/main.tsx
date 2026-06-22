@@ -1,7 +1,7 @@
 import { render } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import type { FeedEvent } from "./types";
-import { fetchEvents } from "./api";
+import { fetchEvents, clearEvents } from "./api";
 import { connectFeed, type FeedConnection } from "./ws-client";
 import { FeedStore } from "./store";
 import { Feed } from "./feed";
@@ -28,14 +28,19 @@ function App() {
         getLastSeenId: () => store.lastSeenId(),
         backfill: (after) => fetchEvents({ after }),
         onStatus: (c) => { if (active) setConnected(c); },
-        onMessage: (m) => { store.apply(m); maybeNotify(m.event); refresh(); },
+        onMessage: (m) => { store.apply(m); if (m.kind !== "cleared") maybeNotify(m.event); refresh(); },
       });
     });
 
     return () => { active = false; conn?.close(); };
   }, []);
 
-  return <Feed events={events} connected={connected} />;
+  const onClear = (): void => {
+    if (!confirm("Clear all cards? This permanently deletes the feed history and cannot be undone.")) return;
+    void clearEvents().catch(() => { /* a failed clear self-heals on the next reconnect/backfill */ });
+  };
+
+  return <Feed events={events} connected={connected} onClear={onClear} />;
 }
 
 render(<App />, document.getElementById("app")!);

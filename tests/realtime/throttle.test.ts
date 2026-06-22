@@ -26,4 +26,25 @@ describe("createThrottler", () => {
     expect(send).toHaveBeenCalledTimes(1);
     expect(send.mock.calls[0][0].event.id).toBe(7);
   });
+
+  it("passes 'cleared' through immediately and drops buffered updates it would resurrect", () => {
+    const send = vi.fn<(m: FeedMessage) => void>();
+    const t = createThrottler(send, 100);
+    t(make(7, "updated"));            // buffered, not yet sent
+    t({ kind: "cleared" });           // clears everything immediately
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0][0].kind).toBe("cleared");
+    vi.advanceTimersByTime(100);      // the buffered update must NOT flush
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("a channel-scoped 'cleared' only drops buffered updates for that channel", () => {
+    const send = vi.fn<(m: FeedMessage) => void>();
+    const t = createThrottler(send, 100);
+    t(make(7, "updated"));                       // channel "default"
+    t({ kind: "cleared", channelId: "other" });  // unrelated channel
+    vi.advanceTimersByTime(100);
+    const kinds = send.mock.calls.map((c) => c[0].kind);
+    expect(kinds).toEqual(["cleared", "updated"]);
+  });
 });

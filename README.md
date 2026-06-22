@@ -24,6 +24,8 @@ Each tool call follows the same path: **validate → persist (SQLite / media) �
 - npm (ships with Node).
 - macOS/Linux. `better-sqlite3` is a native module and is built on `npm install`.
 
+> Prefer containers? You can skip the Node toolchain entirely and [run it with Docker](#run-with-docker).
+
 ## Quick start
 
 ```bash
@@ -35,10 +37,10 @@ npm install
 npm run build:web
 
 # Start the hub
-npm run start:dev          # http://127.0.0.1:4319
+npm run start:dev          # http://127.0.0.1:4500
 ```
 
-Then open **http://127.0.0.1:4319** in a browser and leave the tab open. Point your MCP client at **http://127.0.0.1:4319/mcp** (see [Connecting an MCP client](#connecting-an-mcp-client)).
+Then open **http://127.0.0.1:4500** in a browser and leave the tab open. Point your MCP client at **http://127.0.0.1:4500/mcp** (see [Connecting an MCP client](#connecting-an-mcp-client)).
 
 ### Production run
 
@@ -49,24 +51,48 @@ npm run build              # builds the UI bundle + compiles the server to dist/
 npm start                  # node dist/index.js
 ```
 
+## Run with Docker
+
+The repo ships a multi-stage [`Dockerfile`](./Dockerfile) and a [`docker-compose.yml`](./docker-compose.yml). The image builds the UI bundle, compiles the server, and runs it as a non-root user; data lives in a `/data` volume so your history survives container restarts.
+
+```bash
+docker compose up -d            # build the image + start in the background
+# UI now at http://127.0.0.1:4500  (MCP endpoint: /mcp)
+docker compose logs -f          # follow logs
+docker compose down             # stop; the aicb-data volume keeps your history
+```
+
+Or without Compose:
+
+```bash
+docker build -t aicommsbridge .
+docker run -d --name aicommsbridge \
+  -p 127.0.0.1:4500:4500 \
+  -v aicb-data:/data \
+  aicommsbridge
+```
+
+The image sets `AICB_HOST=0.0.0.0` (so the port is reachable through Docker's mapping), `AICB_PORT=4500`, and `AICB_DATA_DIR=/data`. The published port is bound to the host's `127.0.0.1` because the hub has **no authentication** — only widen this (e.g. `-p 4500:4500`) if you understand the exposure. Point your MCP client at `http://127.0.0.1:4500/mcp`.
+
 ## Configuration
 
 All configuration is via environment variables; defaults work out of the box.
 
 | Variable         | Default            | Description                                              |
 | ---------------- | ------------------ | -------------------------------------------------------- |
-| `AICB_PORT`      | `4319`             | Port the hub listens on (bound to `127.0.0.1`).          |
+| `AICB_HOST`      | `127.0.0.1`        | Network interface to bind. `127.0.0.1` = local only; `0.0.0.0` listens on all interfaces (set by the Docker image). |
+| `AICB_PORT`      | `4500`             | Port the hub listens on.                                 |
 | `AICB_DATA_DIR`  | `~/.aicommsbridge` | Where data is stored: `db.sqlite` + `media/` (uploads).  |
 
 ```bash
 AICB_PORT=5000 AICB_DATA_DIR=/tmp/acb npm run start:dev
 ```
 
-Data persists across restarts. To reset, stop the hub and delete `$AICB_DATA_DIR`.
+Data persists across restarts. Clear the feed at any time with the **Clear** button in the UI topbar or the `clear_feed` MCP tool. To wipe everything including media off disk, stop the hub and delete `$AICB_DATA_DIR`.
 
 ## MCP tools
 
-The hub exposes **7 tools** over MCP. Every tool also accepts an optional `channel` string (defaults to `"default"`) — the UI shows a single feed today, but every event is keyed by channel so multi-channel views can be added later.
+The hub exposes **8 tools** over MCP. Every tool also accepts an optional `channel` string (defaults to `"default"`) — the UI shows a single feed today, but every event is keyed by channel so multi-channel views can be added later.
 
 | Tool              | Required          | Optional                                                  | Notes |
 | ----------------- | ----------------- | --------------------------------------------------------- | ----- |
@@ -77,10 +103,24 @@ The hub exposes **7 tools** over MCP. Every tool also accepts an optional `chann
 | `show_diff`       | —                 | `diff` *or* `before`+`after`, `filename`, `language`      | Pass a unified `diff` string **or** `before`/`after` text (the hub computes the diff). |
 | `add_link`        | `url`             | `title`, `description`                                    | `url` must be a valid URL. Renders a clickable card. |
 | `append_log`      | `key`, `text`     | `title`                                                   | **Append by `key`** — re-call to keep appending to one stream (capped at the most recent 1000 lines). |
+| `clear_feed`      | —                 | `channel`                                                 | **Destructive** — permanently deletes cards (and their media). Omit `channel` to clear the whole bridge; pass one to clear just that channel. |
 
 ## Connecting an MCP client
 
-Any Streamable-HTTP MCP client works. Example with the official TypeScript SDK:
+Any Streamable-HTTP MCP client works. The repo ships a project-scoped [`.mcp.json`](./.mcp.json) that registers the hub for clients that read it (e.g. Claude Code):
+
+```json
+{
+  "mcpServers": {
+    "aicommsbridge": {
+      "type": "http",
+      "url": "http://127.0.0.1:4500/mcp"
+    }
+  }
+}
+```
+
+Or drive it programmatically with the official TypeScript SDK:
 
 ```js
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -88,7 +128,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 
 const client = new Client({ name: "my-agent", version: "1.0.0" });
 await client.connect(
-  new StreamableHTTPClientTransport(new URL("http://127.0.0.1:4319/mcp")),
+  new StreamableHTTPClientTransport(new URL("http://127.0.0.1:4500/mcp")),
 );
 
 await client.callTool({
@@ -112,8 +152,9 @@ The cards appear in the open browser tab instantly.
 | `GET /`               | The web UI (served from the built `web/dist` bundle).             |
 | `POST /mcp`           | MCP endpoint (Streamable HTTP transport).                         |
 | `GET /api/events`     | Event history; `?after=<id>` returns only events after that id.   |
+| `DELETE /api/events`  | Clears the feed (the UI **Clear** button); `?channel=<id>` scopes it. Returns `{ deleted }`. |
 | `GET /media/:id`      | Serves an uploaded image by media id.                             |
-| `GET /ws`             | WebSocket for live `{ kind, event }` messages.                    |
+| `GET /ws`             | WebSocket for live messages: `{ kind: "created" \| "updated", event }` or `{ kind: "cleared", channelId? }`. |
 
 ## Development
 

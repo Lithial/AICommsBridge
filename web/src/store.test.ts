@@ -28,4 +28,21 @@ describe("FeedStore", () => {
     s.upsertMany([ev(4, 1), ev(9, 1)]);
     expect(s.lastSeenId()).toBe(9);
   });
+
+  it("apply('cleared') with no channel empties the store", () => {
+    const s = new FeedStore();
+    s.upsertMany([ev(1, 1), ev(2, 1)]);
+    s.apply({ kind: "cleared" });
+    expect(s.list()).toEqual([]);
+  });
+
+  it("clear scoped to a channel keeps other channels", () => {
+    const s = new FeedStore();
+    s.upsertMany([
+      { ...ev(1, 1), channelId: "keep" },
+      { ...ev(2, 1), channelId: "drop" },
+    ]);
+    s.clear("drop");
+    expect(s.list().map((e) => e.id)).toEqual([1]);
+  });
 });

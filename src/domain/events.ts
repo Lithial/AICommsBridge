@@ -67,7 +67,11 @@ export interface FeedEvent {
   payload: EventPayload;
 }
 
-export interface FeedMessage {
-  kind: "created" | "updated";
-  event: FeedEvent;
-}
+/**
+ * Live wire messages. `created`/`updated` carry a single event; `cleared` tells
+ * consumers to drop events — scoped to `channelId` when set, otherwise every channel.
+ */
+export type FeedMessage =
+  | { kind: "created"; event: FeedEvent }
+  | { kind: "updated"; event: FeedEvent }
+  | { kind: "cleared"; channelId?: string };

@@ -72,5 +72,17 @@ export function createMcpServer(feed: FeedService): McpServer {
     return ack(e.id, e.channelId);
   });
 
+  server.registerTool("clear_feed", {
+    title: "Clear the feed",
+    description: "Remove cards from the feed. Omit 'channel' to clear the entire bridge, or pass one to clear just that channel. Destructive — permanently deletes feed history.",
+    inputSchema: { channel },
+  }, async (a) => {
+    // Unlike the post tools (which default to the "default" channel), an omitted
+    // channel clears EVERY channel: "clear the bridge" means clear everything.
+    const { deleted } = feed.clear({ channelId: a.channel });
+    const scope = a.channel ? `channel "${a.channel}"` : "all channels";
+    return { content: [{ type: "text" as const, text: `Cleared ${deleted} event(s) from ${scope}.` }] };
+  });
+
   return server;
 }

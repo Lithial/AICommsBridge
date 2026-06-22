@@ -1,7 +1,7 @@
 import type { Db } from "./store/db.js";
 import type { Broadcaster } from "./realtime/broadcaster.js";
-import { insertEvent, upsertProgress, appendLog } from "./store/events.js";
-import { saveMediaFromBuffer, saveMediaFromPath } from "./store/media-store.js";
+import { insertEvent, upsertProgress, appendLog, clearEvents } from "./store/events.js";
+import { saveMediaFromBuffer, saveMediaFromPath, deleteMedia } from "./store/media-store.js";
 import { computeUnifiedDiff } from "./domain/diff.js";
 import type { FeedEvent, NotePayload, ProgressPayload } from "./domain/events.js";
 
@@ -18,7 +18,7 @@ export class FeedService {
   }
 
   private emit(created: boolean, event: FeedEvent): FeedEvent {
-    this.bus.broadcast({ kind: created ? "created" : "updated", event });
+    this.bus.broadcast(created ? { kind: "created", event } : { kind: "updated", event });
     return event;
   }
 
@@ -89,5 +89,13 @@ export class FeedService {
   appendLog(p: { channelId: string; key: string; text: string; title?: string }): FeedEvent {
     const { event, created } = appendLog(this.db, p);
     return this.emit(created, event);
+  }
+
+  /** Deletes events (all channels, or one when `channelId` is set), prunes their media, and broadcasts a clear. */
+  clear(p: { channelId?: string } = {}): { deleted: number } {
+    const { deleted, mediaIds } = clearEvents(this.db, p.channelId);
+    for (const mediaId of mediaIds) deleteMedia(this.mediaDir, mediaId);
+    this.bus.broadcast({ kind: "cleared", channelId: p.channelId });
+    return { deleted };
   }
 }

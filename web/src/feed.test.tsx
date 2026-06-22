@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/preact";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/preact";
 import { Feed } from "./feed";
 import type { FeedEvent } from "./types";
 
@@ -16,5 +16,17 @@ describe("Feed", () => {
   it("shows reconnecting when disconnected", () => {
     render(<Feed events={[]} connected={false} />);
     expect(screen.getByText(/reconnecting/i)).toBeTruthy();
+  });
+
+  it("invokes onClear when the Clear button is clicked", () => {
+    const onClear = vi.fn();
+    render(<Feed events={[note(1, "alpha")]} connected={true} onClear={onClear} />);
+    fireEvent.click(screen.getByText("Clear"));
+    expect(onClear).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables the Clear button when the feed is empty", () => {
+    render(<Feed events={[]} connected={true} onClear={() => {}} />);
+    expect((screen.getByText("Clear") as HTMLButtonElement).disabled).toBe(true);
   });
 });

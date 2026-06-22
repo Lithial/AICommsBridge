@@ -2,7 +2,7 @@ import { useRef, useEffect } from "preact/hooks";
 import type { FeedEvent } from "./types";
 import { EventCard } from "./cards/EventCard";
 
-export function Feed({ events, connected }: { events: FeedEvent[]; connected: boolean }) {
+export function Feed({ events, connected, onClear }: { events: FeedEvent[]; connected: boolean; onClear?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -21,7 +21,10 @@ export function Feed({ events, connected }: { events: FeedEvent[]; connected: bo
     <div class="app">
       <header class="topbar">
         <span class="brand">AICommsBridge</span>
-        <span class={`conn ${connected ? "on" : "off"}`}>{connected ? "live" : "reconnecting…"}</span>
+        <div class="topbar-right">
+          <span class={`conn ${connected ? "on" : "off"}`}>{connected ? "live" : "reconnecting…"}</span>
+          <button class="clear-btn" onClick={() => onClear?.()} disabled={events.length === 0} title="Clear all cards">Clear</button>
+        </div>
       </header>
       <div class="feed" ref={containerRef} onScroll={onScroll}>
         {events.map((e) => <EventCard key={e.id} event={e} />)}

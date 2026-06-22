@@ -1,0 +1,26 @@
+# Dependencies & build output — reinstalled/recompiled inside the image
+node_modules
+dist
+web/dist
+
+# Local runtime data
+.aicommsbridge/
+*.sqlite
+*.sqlite-*
+
+# VCS & editor noise
+.git
+.gitignore
+.github
+
+# Docker & docs — not needed in the build context
+Dockerfile
+docker-compose.yml
+.dockerignore
+README.md
+docs
+
+# Tests are not part of the production build
+tests
+**/*.test.ts
+**/*.test.tsx

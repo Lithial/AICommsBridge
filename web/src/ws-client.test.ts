@@ -32,7 +32,7 @@ describe("connectFeed", () => {
     expect(backfill).toHaveBeenCalledWith(1);
     socket.onopen?.();
     socket.emit({ kind: "created", event: note(4) });
-    expect(seen.map((m) => m.event.id)).toEqual([2, 3, 4]);
+    expect(seen.flatMap((m) => (m.kind === "cleared" ? [] : [m.event.id]))).toEqual([2, 3, 4]);
   });
 
   it("reconnects with backoff after a close", async () => {

@@ -24,10 +24,10 @@ beforeEach(async () => {
 afterEach(async () => { await client.close(); db.close(); rmSync(dir, { recursive: true, force: true }); });
 
 describe("MCP tools", () => {
-  it("lists all seven tools", async () => {
+  it("lists all eight tools", async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
-      ["add_link", "append_log", "post_note", "show_code", "show_diff", "show_image", "update_progress"],
+      ["add_link", "append_log", "clear_feed", "post_note", "show_code", "show_diff", "show_image", "update_progress"],
     );
   });
 
@@ -50,5 +50,13 @@ describe("MCP tools", () => {
   it("show_image without path or data returns a tool error", async () => {
     const res = await client.callTool({ name: "show_image", arguments: { caption: "x" } });
     expect(res.isError).toBe(true);
+  });
+
+  it("clear_feed empties the feed and reports the count", async () => {
+    await client.callTool({ name: "post_note", arguments: { markdown: "a" } });
+    await client.callTool({ name: "post_note", arguments: { markdown: "b" } });
+    const res = await client.callTool({ name: "clear_feed", arguments: {} });
+    expect((res.content as { text: string }[])[0].text).toMatch(/Cleared 2 event\(s\) from all channels\./);
+    expect(queryEvents(db, {})).toEqual([]);
   });
 });

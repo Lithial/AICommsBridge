@@ -21,7 +21,7 @@ beforeEach(() => {
   db = openDb(join(dir, "db.sqlite"));
   feed = new FeedService(db, new Broadcaster(), mediaDir);
   app = express();
-  app.use("/api", eventsRouter(db));
+  app.use("/api", eventsRouter(db, feed));
   app.use("/media", mediaRouter(mediaDir));
 });
 afterEach(() => { db.close(); rmSync(dir, { recursive: true, force: true }); });
@@ -40,6 +40,27 @@ describe("GET /api/events", () => {
     feed.postNote({ channelId: DEFAULT_CHANNEL, markdown: "two" });
     const res = await request(app).get(`/api/events?after=${a.id}`);
     expect((res.body as { events: FeedEvent[] }).events.map((e) => (e.payload as NotePayload).markdown)).toEqual(["two"]);
+  });
+});
+
+describe("DELETE /api/events", () => {
+  it("clears the feed and reports the deleted count", async () => {
+    feed.postNote({ channelId: DEFAULT_CHANNEL, markdown: "one" });
+    feed.postNote({ channelId: DEFAULT_CHANNEL, markdown: "two" });
+    const res = await request(app).delete("/api/events");
+    expect(res.status).toBe(200);
+    expect((res.body as { deleted: number }).deleted).toBe(2);
+    const after = await request(app).get("/api/events");
+    expect((after.body as { events: FeedEvent[] }).events).toEqual([]);
+  });
+
+  it("scopes the clear to a single channel via ?channel=", async () => {
+    feed.postNote({ channelId: "keep", markdown: "stay" });
+    feed.postNote({ channelId: "drop", markdown: "go" });
+    const res = await request(app).delete("/api/events?channel=drop");
+    expect((res.body as { deleted: number }).deleted).toBe(1);
+    const remaining = await request(app).get("/api/events");
+    expect((remaining.body as { events: FeedEvent[] }).events.map((e) => e.channelId)).toEqual(["keep"]);
   });
 });
 

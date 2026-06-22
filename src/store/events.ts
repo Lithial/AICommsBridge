@@ -1,6 +1,6 @@
 import type { Db } from "./db.js";
 import { ensureChannel } from "./channels.js";
-import type { EventType, EventPayload, FeedEvent, ProgressPayload, LogPayload } from "../domain/events.js";
+import type { EventType, EventPayload, FeedEvent, ProgressPayload, LogPayload, ImagePayload } from "../domain/events.js";
 
 const LOG_CAP = 1000;
 
@@ -108,4 +108,21 @@ export function appendLog(
   const payload: LogPayload = { title: params.title, lines: capped.lines, truncatedCount: capped.truncatedCount };
   const event = insertEvent(db, { channelId: params.channelId, type: "log", key: params.key, payload });
   return { event, created: true };
+}
+
+/**
+ * Deletes events — every channel when `channelId` is omitted, otherwise just that
+ * channel. Returns the deleted-row count and the media ids of any removed image
+ * events so callers can prune the now-orphaned files on disk.
+ */
+export function clearEvents(db: Db, channelId?: string): { deleted: number; mediaIds: string[] } {
+  const scoped = channelId != null;
+  const imageRows = db
+    .prepare(`SELECT payload FROM events WHERE type = 'image'${scoped ? " AND channel_id = ?" : ""}`)
+    .all(...(scoped ? [channelId] : [])) as { payload: string }[];
+  const mediaIds = imageRows
+    .map((r) => (JSON.parse(r.payload) as ImagePayload).mediaId)
+    .filter((m): m is string => typeof m === "string" && m.length > 0);
+  const info = db.prepare(`DELETE FROM events${scoped ? " WHERE channel_id = ?" : ""}`).run(...(scoped ? [channelId] : []));
+  return { deleted: info.changes, mediaIds };
 }

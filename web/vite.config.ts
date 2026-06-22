@@ -12,10 +12,10 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": "http://127.0.0.1:4319",
-      "/media": "http://127.0.0.1:4319",
-      "/mcp": "http://127.0.0.1:4319",
-      "/ws": { target: "ws://127.0.0.1:4319", ws: true },
+      "/api": "http://127.0.0.1:4500",
+      "/media": "http://127.0.0.1:4500",
+      "/mcp": "http://127.0.0.1:4500",
+      "/ws": { target: "ws://127.0.0.1:4500", ws: true },
     },
   },
 });

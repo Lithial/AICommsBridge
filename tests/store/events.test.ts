@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDb, type Db } from "../../src/store/db.js";
-import { insertEvent, getEvent, queryEvents } from "../../src/store/events.js";
+import { insertEvent, getEvent, queryEvents, clearEvents } from "../../src/store/events.js";
 import type { NotePayload } from "../../src/domain/events.js";
 
 let dir: string; let db: Db;
@@ -33,5 +33,24 @@ describe("events store: append + query", () => {
     insertEvent(db, { channelId: "proj-x", type: "note", payload: { markdown: "hi", level: "info" } });
     const ch = db.prepare("SELECT id FROM channels WHERE id = ?").get("proj-x") as { id: string } | undefined;
     expect(ch?.id).toBe("proj-x");
+  });
+});
+
+describe("clearEvents", () => {
+  it("deletes every event and returns the count plus image media ids", () => {
+    insertEvent(db, { channelId: "default", type: "note", payload: { markdown: "n", level: "info" } });
+    insertEvent(db, { channelId: "default", type: "image", payload: { mediaId: "abc.png", mime: "image/png" } });
+    const { deleted, mediaIds } = clearEvents(db);
+    expect(deleted).toBe(2);
+    expect(mediaIds).toEqual(["abc.png"]);
+    expect(queryEvents(db, {})).toEqual([]);
+  });
+
+  it("deletes only the named channel when scoped", () => {
+    insertEvent(db, { channelId: "keep", type: "note", payload: { markdown: "a", level: "info" } });
+    insertEvent(db, { channelId: "drop", type: "note", payload: { markdown: "b", level: "info" } });
+    const { deleted } = clearEvents(db, "drop");
+    expect(deleted).toBe(1);
+    expect(queryEvents(db, {}).map((e) => e.channelId)).toEqual(["keep"]);
   });
 });

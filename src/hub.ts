@@ -21,7 +21,7 @@ export function startHub(config: Config, webDir?: string): Promise<Hub> {
   const wss = attachWebsocket(httpServer, bus);
 
   const { promise, resolve } = Promise.withResolvers<Hub>();
-  httpServer.listen(config.port, "127.0.0.1", () => {
+  httpServer.listen(config.port, config.host, () => {
     const port = (httpServer.address() as AddressInfo).port;
     resolve({
       port,

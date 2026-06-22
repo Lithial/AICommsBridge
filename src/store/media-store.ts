@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { join, extname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { imageSize } from "image-size";
@@ -52,4 +52,13 @@ export function saveMediaFromPath(dir: string, path: string, mimeOverride?: stri
   const buffer = readFileSync(path);
   const mime = mimeOverride ?? EXT_TO_MIME[extname(path).toLowerCase()] ?? "application/octet-stream";
   return saveMediaFromBuffer(dir, buffer, mime);
+}
+
+export function deleteMedia(dir: string, mediaId: string): void {
+  if (mediaId.includes("/") || mediaId.includes("\\") || mediaId.includes("..")) return;
+  try {
+    rmSync(mediaPath(dir, mediaId), { force: true });
+  } catch {
+    /* file already gone or unreadable; nothing to prune */
+  }
 }

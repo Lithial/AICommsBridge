@@ -12,7 +12,7 @@ export function createApp(opts: { db: Db; feed: FeedService; mediaDir: string; w
   const app = express();
   app.use(express.json({ limit: "32mb" }));
 
-  app.use("/api", eventsRouter(opts.db));
+  app.use("/api", eventsRouter(opts.db, opts.feed));
   app.use("/media", mediaRouter(opts.mediaDir));
 
   const transports: Record<string, StreamableHTTPServerTransport> = {};

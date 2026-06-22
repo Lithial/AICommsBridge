@@ -1,0 +1,20 @@
+services:
+  aicommsbridge:
+    build: .
+    image: aicommsbridge:latest
+    container_name: aicommsbridge
+    # Publish on the host loopback only — the hub has no auth, so keep it local.
+    # Host port 4500 -> container port 4500. To expose on the LAN, drop the
+    # "127.0.0.1:" prefix (e.g. "4500:4500") — understand the risk first.
+    ports:
+      - "127.0.0.1:4500:4500"
+    volumes:
+      - aicb-data:/data
+    # Image already sets AICB_HOST=0.0.0.0, AICB_PORT=4500, AICB_DATA_DIR=/data.
+    # Override here if needed, e.g.:
+    # environment:
+    #   AICB_PORT: "4500"
+    restart: unless-stopped
+
+volumes:
+  aicb-data:

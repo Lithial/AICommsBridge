@@ -11,7 +11,7 @@ import type { FeedEvent, FeedMessage, NotePayload } from "../../src/domain/event
 let dir: string; let hub: Hub; let base: string;
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), "acb-"));
-  hub = await startHub({ port: 0, dataDir: dir, dbPath: join(dir, "db.sqlite"), mediaDir: join(dir, "media") });
+  hub = await startHub({ host: "127.0.0.1", port: 0, dataDir: dir, dbPath: join(dir, "db.sqlite"), mediaDir: join(dir, "media") });
   base = `http://127.0.0.1:${hub.port}`;
 });
 afterEach(async () => { await hub.close(); rmSync(dir, { recursive: true, force: true }); });
@@ -44,6 +44,26 @@ describe("hub end-to-end", () => {
     const msg = await got;
     expect(msg.kind).toBe("created");
     expect((msg.event.payload as NotePayload).markdown).toBe("ping");
+    ws.close();
+    await client.close();
+  });
+
+  it("clear_feed clears history and pushes a 'cleared' message over the WebSocket", async () => {
+    const client = await mcpClient();
+    await client.callTool({ name: "post_note", arguments: { markdown: "soon gone" } });
+
+    const ws = new WebSocket(`ws://127.0.0.1:${hub.port}/ws`);
+    const { promise: opened, resolve: openResolve } = Promise.withResolvers<void>();
+    ws.on("open", () => openResolve());
+    const { promise: got, resolve: gotResolve } = Promise.withResolvers<FeedMessage>();
+    ws.on("message", (d) => gotResolve(JSON.parse(d.toString()) as FeedMessage));
+    await opened;
+
+    await client.callTool({ name: "clear_feed", arguments: {} });
+    expect((await got).kind).toBe("cleared");
+
+    const res = await fetch(`${base}/api/events`);
+    expect(((await res.json()) as { events: FeedEvent[] }).events).toEqual([]);
     ws.close();
     await client.close();
   });
