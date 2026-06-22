@@ -1,9 +1,10 @@
+import { randomUUID } from "node:crypto";
 import type { Db } from "./store/db.js";
 import type { Broadcaster } from "./realtime/broadcaster.js";
-import { insertEvent, upsertProgress, appendLog, clearEvents } from "./store/events.js";
+import { insertEvent, upsertProgress, appendLog, clearEvents, updateAskAnswer } from "./store/events.js";
 import { saveMediaFromBuffer, saveMediaFromPath, deleteMedia } from "./store/media-store.js";
 import { computeUnifiedDiff } from "./domain/diff.js";
-import type { FeedEvent, NotePayload, ProgressPayload } from "./domain/events.js";
+import type { FeedEvent, NotePayload, ProgressPayload, AskPayload } from "./domain/events.js";
 
 export class FeedService {
   constructor(
@@ -11,6 +12,8 @@ export class FeedService {
     private readonly bus: Broadcaster,
     private readonly mediaDir: string,
   ) {}
+
+  private readonly pendingRequests = new Map<string, { resolve: (a: string) => void; eventId: number }>();
 
   private created(event: FeedEvent): FeedEvent {
     this.bus.broadcast({ kind: "created", event });
@@ -89,6 +92,33 @@ export class FeedService {
   appendLog(p: { channelId: string; key: string; text: string; title?: string }): FeedEvent {
     const { event, created } = appendLog(this.db, p);
     return this.emit(created, event);
+  }
+
+  askUser(p: { channelId: string; question: string; options?: string[] | null; placeholder?: string | null }): Promise<string> {
+    const requestId = randomUUID();
+    const payload: AskPayload = {
+      question: p.question,
+      options: p.options ?? null,
+      placeholder: p.placeholder ?? null,
+      requestId,
+      answer: null,
+      answeredAt: null,
+    };
+    const event = this.created(insertEvent(this.db, { channelId: p.channelId, type: "ask", payload }));
+    return new Promise<string>((resolve) => {
+      this.pendingRequests.set(requestId, { resolve, eventId: event.id });
+    });
+  }
+
+  respond(requestId: string, answer: string): { found: boolean } {
+    const pending = this.pendingRequests.get(requestId);
+    if (!pending) return { found: false };
+    this.pendingRequests.delete(requestId);
+    const answeredAt = Date.now();
+    const updated = updateAskAnswer(this.db, pending.eventId, answer, answeredAt);
+    if (updated) this.bus.broadcast({ kind: "updated", event: updated });
+    pending.resolve(answer);
+    return { found: true };
   }
 
   /** Deletes events (all channels, or one when `channelId` is set), prunes their media, and broadcasts a clear. */

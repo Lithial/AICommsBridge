@@ -8,7 +8,7 @@ import { FeedService } from "../src/feed.js";
 import { queryEvents } from "../src/store/events.js";
 import { mediaPath } from "../src/store/media-store.js";
 import { DEFAULT_CHANNEL } from "../src/domain/events.js";
-import type { FeedMessage, CodePayload, ImagePayload } from "../src/domain/events.js";
+import type { FeedMessage, CodePayload, ImagePayload, AskPayload } from "../src/domain/events.js";
 
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
 
@@ -75,5 +75,39 @@ describe("FeedService", () => {
     expect(deleted).toBe(1);
     expect(queryEvents(db, {}).map((e) => e.channelId)).toEqual(["keep"]);
     expect(seen).toEqual([{ kind: "cleared", channelId: "drop" }]);
+  });
+
+  it("askUser inserts an ask event with answer null and resolves when respond is called", async () => {
+    const promise = feed.askUser({ channelId: DEFAULT_CHANNEL, question: "Go?" });
+    const events = queryEvents(db, {});
+    expect(events.length).toBe(1);
+    expect(events[0].type).toBe("ask");
+    expect((events[0].payload as AskPayload).answer).toBeNull();
+    expect(seen.at(-1)).toMatchObject({ kind: "created", event: { type: "ask" } });
+
+    seen = [];
+    const { found } = feed.respond((events[0].payload as AskPayload).requestId, "yes");
+    expect(found).toBe(true);
+    expect(await promise).toBe("yes");
+    expect(seen.at(-1)).toMatchObject({ kind: "updated", event: { type: "ask" } });
+    const updated = queryEvents(db, {})[0];
+    expect((updated.payload as AskPayload).answer).toBe("yes");
+    expect((updated.payload as AskPayload).answeredAt).toBeGreaterThan(0);
+  });
+
+  it("respond returns found:false for an unknown requestId", () => {
+    expect(feed.respond("no-such-id", "x").found).toBe(false);
+  });
+
+  it("two concurrent askUser calls resolve independently", async () => {
+    const p1 = feed.askUser({ channelId: DEFAULT_CHANNEL, question: "First?" });
+    const p2 = feed.askUser({ channelId: DEFAULT_CHANNEL, question: "Second?" });
+    const events = queryEvents(db, {});
+    const id1 = (events[0].payload as AskPayload).requestId;
+    const id2 = (events[1].payload as AskPayload).requestId;
+    feed.respond(id2, "b");
+    feed.respond(id1, "a");
+    expect(await p1).toBe("a");
+    expect(await p2).toBe("b");
   });
 });
