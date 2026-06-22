@@ -72,6 +72,25 @@ export function createMcpServer(feed: FeedService): McpServer {
     return ack(e.id, e.channelId);
   });
 
+  server.registerTool("ask_user", {
+    title: "Ask the user",
+    description: "Pause and ask the user a question. The tool blocks until the user answers in the feed UI, then returns their answer. Provide 'options' for multiple-choice buttons, 'placeholder' for free-text input, or neither for Approve/Reject.",
+    inputSchema: {
+      question: z.string().min(1),
+      options: z.array(z.string().min(1)).optional(),
+      placeholder: z.string().optional(),
+      channel,
+    },
+  }, async (a) => {
+    const answer = await feed.askUser({
+      channelId: ch(a.channel),
+      question: a.question,
+      options: a.options ?? null,
+      placeholder: a.placeholder ?? null,
+    });
+    return { content: [{ type: "text" as const, text: answer }] };
+  });
+
   server.registerTool("clear_feed", {
     title: "Clear the feed",
     description: "Remove cards from the feed. Omit 'channel' to clear the entire bridge, or pass one to clear just that channel. Destructive — permanently deletes feed history.",

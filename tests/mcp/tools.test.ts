@@ -9,13 +9,13 @@ import { Broadcaster } from "../../src/realtime/broadcaster.js";
 import { FeedService } from "../../src/feed.js";
 import { createMcpServer } from "../../src/mcp/server.js";
 import { queryEvents } from "../../src/store/events.js";
-import type { NotePayload, ProgressPayload } from "../../src/domain/events.js";
+import type { NotePayload, ProgressPayload, AskPayload } from "../../src/domain/events.js";
 
-let dir: string; let db: Db; let client: Client;
+let dir: string; let db: Db; let client: Client; let feed: FeedService;
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), "acb-"));
   db = openDb(join(dir, "db.sqlite"));
-  const feed = new FeedService(db, new Broadcaster(), join(dir, "media"));
+  feed = new FeedService(db, new Broadcaster(), join(dir, "media"));
   const server = createMcpServer(feed);
   const [clientT, serverT] = InMemoryTransport.createLinkedPair();
   client = new Client({ name: "test", version: "0.0.0" });
@@ -24,10 +24,10 @@ beforeEach(async () => {
 afterEach(async () => { await client.close(); db.close(); rmSync(dir, { recursive: true, force: true }); });
 
 describe("MCP tools", () => {
-  it("lists all eight tools", async () => {
+  it("lists all nine tools", async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
-      ["add_link", "append_log", "clear_feed", "post_note", "show_code", "show_diff", "show_image", "update_progress"],
+      ["add_link", "append_log", "ask_user", "clear_feed", "post_note", "show_code", "show_diff", "show_image", "update_progress"],
     );
   });
 
@@ -59,4 +59,20 @@ describe("MCP tools", () => {
     expect((res.content as { text: string }[])[0].text).toMatch(/Cleared 2 event\(s\) from all channels\./);
     expect(queryEvents(db, {})).toEqual([]);
   });
+  it("ask_user resolves when respond is called", async () => {
+    const toolCall = client.callTool({ name: "ask_user", arguments: { question: "Proceed?", options: ["yes", "no"] } });
+    await new Promise((r) => setTimeout(r, 10));
+
+    const events = queryEvents(db, {});
+    expect(events.length).toBe(1);
+    expect(events[0].type).toBe("ask");
+
+    const { requestId } = events[0].payload as AskPayload;
+    const { found } = feed.respond(requestId, "yes");
+    expect(found).toBe(true);
+
+    const result = await toolCall;
+    expect((result.content as { text: string }[])[0].text).toBe("yes");
+  });
+
 });
