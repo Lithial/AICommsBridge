@@ -34,3 +34,12 @@ export async function fetchChannels(): Promise<ChannelSummary[]> {
   const body = (await res.json()) as { channels: ChannelSummary[] };
   return body.channels;
 }
+
+export async function respondToAsk(requestId: string, answer: string): Promise<void> {
+  const res = await fetch(`/api/respond/${encodeURIComponent(requestId)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ answer }),
+  });
+  if (!res.ok) throw new Error(`respondToAsk failed: ${res.status}`);
+}

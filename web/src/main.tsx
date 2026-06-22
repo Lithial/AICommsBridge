@@ -1,7 +1,7 @@
 import { render } from "preact";
 import { useEffect, useRef, useState, useMemo } from "preact/hooks";
 import type { FeedEvent } from "./types";
-import { fetchEvents, clearEvents } from "./api";
+import { fetchEvents, clearEvents, respondToAsk } from "./api";
 import { connectFeed, type FeedConnection } from "./ws-client";
 import { FeedStore } from "./store";
 import { Feed } from "./feed";
@@ -77,6 +77,7 @@ function App() {
       selectedChannel={activeChannel}
       onSelectChannel={setSelectedChannel}
       onClear={onClear}
+      onRespond={respondToAsk}
     />
   );
 }

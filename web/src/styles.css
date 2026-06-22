@@ -44,3 +44,24 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 syst
 .link-title { color: var(--accent); font-weight: 600; }
 .link-desc { color: var(--muted); font-size: 13px; margin: 2px 0; }
 .link-url { color: var(--muted); font-size: 12px; }
+.ask-pending { border-left: 3px solid var(--accent); }
+.ask-question { font-weight: 600; margin-bottom: 10px; }
+.ask-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.ask-option-btn { background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 14px; font: inherit; font-size: 13px; cursor: pointer; }
+.ask-option-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.ask-option-btn:disabled { opacity: .5; cursor: default; }
+.ask-freetext { display: flex; flex-direction: column; gap: 8px; }
+.ask-textarea { background: #0b0d11; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px; font: 13px/1.5 system-ui, sans-serif; resize: vertical; }
+.ask-textarea:disabled { opacity: .5; }
+.ask-submit-btn { align-self: flex-start; background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 5px 16px; font: inherit; font-size: 13px; cursor: pointer; }
+.ask-submit-btn:disabled { opacity: .5; cursor: default; }
+.ask-approval { display: flex; gap: 10px; }
+.ask-approve-btn { background: var(--add); color: #fff; border: none; border-radius: 6px; padding: 5px 16px; font: inherit; font-size: 13px; cursor: pointer; }
+.ask-approve-btn:disabled { opacity: .5; cursor: default; }
+.ask-reject-btn { background: transparent; color: var(--del); border: 1px solid var(--del); border-radius: 6px; padding: 5px 16px; font: inherit; font-size: 13px; cursor: pointer; }
+.ask-reject-btn:disabled { opacity: .5; cursor: default; }
+.ask-error { color: var(--del); font-size: 12px; margin-top: 8px; }
+.ask-answered { opacity: .8; }
+.ask-answer-row { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.ask-answer-text { color: var(--accent); font-weight: 600; }
+.ask-answered-at { color: var(--muted); font-size: 12px; }

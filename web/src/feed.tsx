@@ -9,9 +9,10 @@ interface FeedProps {
   selectedChannel: string | null;
   onSelectChannel: (ch: string | null) => void;
   onClear?: () => void;
+  onRespond: (requestId: string, answer: string) => Promise<void>;
 }
 
-export function Feed({ events, connected, channels, selectedChannel, onSelectChannel, onClear }: FeedProps) {
+export function Feed({ events, connected, channels, selectedChannel, onSelectChannel, onClear, onRespond }: FeedProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -55,7 +56,7 @@ export function Feed({ events, connected, channels, selectedChannel, onSelectCha
         </nav>
       )}
       <div class="feed" ref={containerRef} onScroll={onScroll}>
-        {events.map((e) => <EventCard key={e.id} event={e} />)}
+        {events.map((e) => <EventCard key={e.id} event={e} onRespond={onRespond} />)}
         <div ref={endRef} />
       </div>
     </div>

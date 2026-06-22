@@ -8,4 +8,5 @@ export type {
   CodePayload,
   LinkPayload,
   LogPayload,
+  AskPayload,
 } from "../../src/domain/events";
