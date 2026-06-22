@@ -1,6 +1,6 @@
 import type { Db } from "./db.js";
 import { ensureChannel } from "./channels.js";
-import type { EventType, EventPayload, FeedEvent, ProgressPayload, LogPayload, ImagePayload } from "../domain/events.js";
+import type { EventType, EventPayload, FeedEvent, ProgressPayload, LogPayload, ImagePayload, AskPayload } from "../domain/events.js";
 
 const LOG_CAP = 1000;
 
@@ -125,4 +125,22 @@ export function clearEvents(db: Db, channelId?: string): { deleted: number; medi
     .filter((m): m is string => typeof m === "string" && m.length > 0);
   const info = db.prepare(`DELETE FROM events${scoped ? " WHERE channel_id = ?" : ""}`).run(...(scoped ? [channelId] : []));
   return { deleted: info.changes, mediaIds };
+}
+
+/**
+ * Fills in the answer and answeredAt on a pending ask event.
+ * Returns the updated FeedEvent, or undefined if the id does not exist.
+ */
+export function updateAskAnswer(
+  db: Db,
+  id: number,
+  answer: string,
+  answeredAt: number,
+): FeedEvent | undefined {
+  const event = getEvent(db, id);
+  if (!event) return undefined;
+  const updated: AskPayload = { ...(event.payload as AskPayload), answer, answeredAt };
+  db.prepare("UPDATE events SET payload = ?, updated_at = ? WHERE id = ?")
+    .run(JSON.stringify(updated), answeredAt, id);
+  return { ...event, payload: updated, updatedAt: answeredAt };
 }

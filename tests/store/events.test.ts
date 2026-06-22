@@ -3,8 +3,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDb, type Db } from "../../src/store/db.js";
-import { insertEvent, getEvent, queryEvents, clearEvents } from "../../src/store/events.js";
-import type { NotePayload } from "../../src/domain/events.js";
+import { insertEvent, getEvent, queryEvents, clearEvents, updateAskAnswer } from "../../src/store/events.js";
+import type { NotePayload, AskPayload } from "../../src/domain/events.js";
 
 let dir: string; let db: Db;
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "acb-")); db = openDb(join(dir, "db.sqlite")); });
@@ -52,5 +52,24 @@ describe("clearEvents", () => {
     const { deleted } = clearEvents(db, "drop");
     expect(deleted).toBe(1);
     expect(queryEvents(db, {}).map((e) => e.channelId)).toEqual(["keep"]);
+  });
+});
+
+describe("updateAskAnswer", () => {
+  it("updateAskAnswer fills in answer and answeredAt on an ask event", () => {
+    const askPayload: AskPayload = {
+      question: "Proceed?", options: null, placeholder: null,
+      requestId: "req-1", answer: null, answeredAt: null,
+    };
+    const event = insertEvent(db, { channelId: "default", type: "ask", payload: askPayload });
+    const updated = updateAskAnswer(db, event.id, "yes", 9999);
+    expect(updated).toBeDefined();
+    expect((updated!.payload as AskPayload).answer).toBe("yes");
+    expect((updated!.payload as AskPayload).answeredAt).toBe(9999);
+    expect(updated!.updatedAt).toBe(9999);
+  });
+
+  it("updateAskAnswer returns undefined for an unknown id", () => {
+    expect(updateAskAnswer(db, 99999, "yes", 1)).toBeUndefined();
   });
 });
