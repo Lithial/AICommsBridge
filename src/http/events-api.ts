@@ -24,5 +24,16 @@ export function eventsRouter(db: Db, feed: FeedService): Router {
   r.get("/channels", (_req, res) => {
     res.json({ channels: listChannels(db) });
   });
+  r.post("/respond/:requestId", (req, res) => {
+    const { requestId } = req.params;
+    const answer = typeof req.body?.answer === "string" && req.body.answer.length > 0
+      ? req.body.answer
+      : undefined;
+    if (!answer) { res.status(400).json({ error: "answer required" }); return; }
+    const { found } = feed.respond(requestId, answer);
+    if (!found) { res.status(404).json({ error: "not found" }); return; }
+    res.json({ ok: true });
+  });
+
   return r;
 }
