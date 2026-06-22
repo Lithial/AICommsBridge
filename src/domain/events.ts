@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const DEFAULT_CHANNEL = "default";
 
-export const EVENT_TYPES = ["image", "note", "progress", "code", "link", "log"] as const;
+export const EVENT_TYPES = ["image", "note", "progress", "code", "link", "log", "ask"] as const;
 export const eventTypeSchema = z.enum(EVENT_TYPES);
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -53,9 +53,19 @@ export const logPayloadSchema = z.object({
 });
 export type LogPayload = z.infer<typeof logPayloadSchema>;
 
+export const askPayloadSchema = z.object({
+  question: z.string(),
+  options: z.array(z.string()).nullable(),
+  placeholder: z.string().nullable(),
+  requestId: z.string(),
+  answer: z.string().nullable(),
+  answeredAt: z.number().int().positive().nullable(),
+});
+export type AskPayload = z.infer<typeof askPayloadSchema>;
+
 export type EventPayload =
   | ImagePayload | NotePayload | ProgressPayload
-  | CodePayload | LinkPayload | LogPayload;
+  | CodePayload | LinkPayload | LogPayload | AskPayload;
 
 export interface FeedEvent {
   id: number;
